@@ -1,0 +1,1 @@
+{"content": "https://storage.googleapis.com/your-bucket/your-image-1234.jpeg","annotation":[{"label":["mushroom"],"points":[{"x":0.01875,"y":0.0875},{"x":0.44375,"y":0.47708333333333336}],"imageWidth":640,"imageHeight":480}]}

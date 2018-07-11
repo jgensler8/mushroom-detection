@@ -1,6 +1,8 @@
 tensorflow==1.8.0
 pillow==5.1.0
 lxml==4.2.1
+requests
 Cython
 jupyter
 matplotlib
+opencv-python

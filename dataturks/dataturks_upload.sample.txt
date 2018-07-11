@@ -1,0 +1,1 @@
+https://storage.googleapis.com/your-bucket/your-image-1234.jpeg
