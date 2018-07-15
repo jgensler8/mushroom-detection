@@ -1,3 +1,5 @@
+# This is so echo commands don't add extra newlines
+SHELL=bash
 
 CONTAINER_NAME=mushroom-classifier
 DOCKER_WORKDIR=/workdir
@@ -7,20 +9,26 @@ DATATURKS_UPLOAD_FILE=dataturks/dataturks_upload.txt
 DATATURKS_CONVERSION_FILE=/dataturks_to_PascalVOC.py
 DATATURKS_JSON_FILE=dataturks/mushroombot.json
 DATATURKS_OUTPUT_DIRECTORY=data
-CLOUD_ML_DATA_BUCKET=mushroom-images-cloud-ml
+CLOUD_ML_DATA_BUCKET=mushroombot-ml
 
 PIPELINE_CONFIG=util/mushroomnet.config
 INFERENCE_GRAPH_OUTPUT_DIR=inference_graph
 
 STEPS=1000
 LABEL_MAP_FILE=util/mushroom_label_map.pbtxt
-DETECT_IMAGE_INPUT=data/1527940868.jpeg
+DETECT_IMAGE_INPUT=data/1527937205.jpeg
 DETECT_IMAGE_OUTPUT=data/detected.jpeg
 DETECT_SCORE_THRESHOLD=0.35
 
 MODEL_DIR=.
 TRAIN_DATA=${DATATURKS_OUTPUT_DIRECTORY}
 EVAL_DATA=${DATATURKS_OUTPUT_DIRECTORY}
+GCP_MODEL_NAME=mushroombot_detector
+GCP_REGION=us-central1
+GCP_MODEL_BINARIES=gs://${CLOUD_ML_DATA_BUCKET}/saved_model
+GCP_MODEL_VERSION=v1
+GCP_CLOUD_ML_JSON_INSTANCES=input.json
+GCP_VERSION_CONFIG_FILE=util/model_version.yaml
 
 build_container:
 	docker build -t ${CONTAINER_NAME} .
@@ -70,10 +78,13 @@ clean_inference_graph:
 export_inference_graph:
 	docker run --rm -it --workdir ${DOCKER_WORKDIR} -v $$PWD:${DOCKER_WORKDIR} ${CONTAINER_NAME} \
 		/tensorflow/models/research/object_detection/export_inference_graph.py \
-			--input_type image_tensor \
+			--input_type b64encoded_image_string_tensor \
 			--pipeline_config_path=${PIPELINE_CONFIG} \
 			--trained_checkpoint_prefix ${DATATURKS_OUTPUT_DIRECTORY}/model.ckpt-${STEPS} \
 			--output_directory ${INFERENCE_GRAPH_OUTPUT_DIR}
+
+debug_inference_graph:
+	saved_model_cli show --dir ${INFERENCE_GRAPH_OUTPUT_DIR}/saved_model --all
 
 detect_image:
 	docker run --rm -it --workdir ${DOCKER_WORKDIR} -v $$PWD:${DOCKER_WORKDIR} ${CONTAINER_NAME} \
@@ -86,16 +97,29 @@ detect_image:
 upload_data_to_bucket:
 	gsutil -m cp -r file://${DATATURKS_OUTPUT_DIRECTORY} gs://${CLOUD_ML_DATA_BUCKET}
 
-train_local:
-	gcloud ml-engine local train \
-    --module-name trainer.task \
-    --package-path trainer/ \
-    --job-dir ${MODEL_DIR} \
-    -- \
-    --train-files ${TRAIN_DATA} \
-    --eval-files ${EVAL_DATA} \
-    --train-steps 1000 \
-    --eval-steps 100
+upload_model_to_bucket:
+	gsutil -m cp -r file://${INFERENCE_GRAPH_OUTPUT_DIR}/saved_model gs://${CLOUD_ML_DATA_BUCKET}
 
-train_cloud:
-	echo "gcloud blah"
+create_model:
+	gcloud ml-engine models create ${GCP_MODEL_NAME} --regions=${GCP_REGION}
+
+create_model_version:
+	gcloud ml-engine versions create ${GCP_MODEL_VERSION} \
+	--model ${GCP_MODEL_NAME} \
+	--config ${GCP_VERSION_CONFIG_FILE}
+
+create_gcp_json_input:
+	docker run --rm -it --workdir ${DOCKER_WORKDIR} -v $$PWD:${DOCKER_WORKDIR} ${CONTAINER_NAME} \
+		util/GCP_detection_json.py \
+		--input_image ${DETECT_IMAGE_INPUT} \
+		--output_file ${GCP_CLOUD_ML_JSON_INSTANCES}
+
+gcp_detect_image:
+	gcloud ml-engine predict \
+	  --model ${GCP_MODEL_NAME} \
+	  --version ${GCP_MODEL_VERSION} \
+	  --json-instances ${GCP_CLOUD_ML_JSON_INSTANCES} \
+	  --verbosity debug
+
+delete_model_version:
+	gcloud ml-engine versions delete ${GCP_MODEL_VERSION} --model ${GCP_MODEL_NAME}

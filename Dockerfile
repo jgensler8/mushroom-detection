@@ -13,4 +13,5 @@ ENV PYTHONPATH=$PYTHONPATH:/tensorflow/models/research:/tensorflow/models/resear
 # RUN wget -q http://storage.googleapis.com/download.tensorflow.org/models/object_detection/faster_rcnn_resnet101_coco_11_06_2017.tar.gz
 # RUN tar -xvf faster_rcnn_resnet101_coco_11_06_2017.tar.gz
 # RUN chown -R root:root faster_rcnn_resnet101_coco_11_06_2017
+COPY util/exporter.py /tensorflow/models/research/object_detection/exporter.py
 ENTRYPOINT ["python"]

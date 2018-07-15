@@ -1,0 +1,5 @@
+deploymentUri: gs://mushroombot-ml/saved_model
+framework: TENSORFLOW
+machineType: mls1-c4-m2
+pythonVersion: '2.7'
+runtimeVersion: '1.8'
